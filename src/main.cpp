@@ -66,15 +66,21 @@ inline esp_sleep_wakeup_cause_t esp_sleep_get_wakeup_cause() { return ESP_SLEEP_
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "GlobalActions.h"
+#ifndef OMIT_KOREADER_SYNC
 #include "KOReaderCredentialStore.h"
+#endif
 #include "MappedInputManager.h"
 #include "OpdsServerStore.h"
 #include "RecentBooksStore.h"
 #include "SdCardFontSystem.h"
 #include "activities/Activity.h"
 #include "activities/ActivityManager.h"
+#ifndef OMIT_KOREADER_SYNC
 #include "activities/reader/KOReaderSyncActivity.h"
+#endif
+#ifndef OMIT_KOREADER_SYNC
 #include "activities/settings/KOReaderSettingsActivity.h"
+#endif
 #include "activities/settings/SdFirmwareUpdateActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
@@ -83,7 +89,9 @@ inline esp_sleep_wakeup_cause_t esp_sleep_get_wakeup_cause() { return ESP_SLEEP_
 #endif
 #include "images/LoadingIcon.h"
 #include "util/ButtonNavigator.h"
+#ifndef OMIT_SCREENSHOT_SUPPORT
 #include "util/ScreenshotUtil.h"
+#endif
 
 MappedInputManager mappedInputManager(gpio);
 GfxRenderer renderer(display);
@@ -293,9 +301,11 @@ EpdFontFamily ui12FontFamily(&ui12RegularFont, &ui12BoldFont);
 unsigned long t1 = 0;
 unsigned long t2 = 0;
 
+#ifndef OMIT_SCREENSHOT_SUPPORT
 // Set when the screenshot combo (Power + Volume Down) fires, so the subsequent
 // power button release does not also trigger a short-press action (e.g. sleep).
 static bool screenshotComboHandled = false;
+#endif
 
 const char* resetReasonName(const esp_reset_reason_t reason) {
   switch (reason) {
@@ -442,6 +452,7 @@ bool isGlobalPowerButtonAction(const CrossPointSettings::SHORT_PWRBTN action) {
   return isPowerButtonActionAvailableOutsideReader(action);
 }
 
+#ifndef OMIT_KOREADER_SYNC
 bool startGlobalSyncProgress() {
   if (!KOREADER_STORE.hasCredentials()) {
     activityManager.pushActivity(std::make_unique<KOReaderSettingsActivity>(renderer, mappedInputManager));
@@ -498,6 +509,7 @@ bool startGlobalSyncProgress() {
                                              totalPagesInSpine, std::move(localKoPos), std::move(localChapterName)));
   return true;
 }
+#endif
 
 CrossPointSettings::SHORT_PWRBTN getPowerButtonAction() {
   static bool longPowerButtonHandled = false;
@@ -505,14 +517,18 @@ CrossPointSettings::SHORT_PWRBTN getPowerButtonAction() {
   if (mappedInputManager.wasReleased(MappedInputManager::Button::Power)) {
     if (longPowerButtonHandled) {
       longPowerButtonHandled = false;
+#ifndef OMIT_SCREENSHOT_SUPPORT
       screenshotComboHandled = false;
+#endif
       return CrossPointSettings::SHORT_PWRBTN::IGNORE;
     }
 
+#ifndef OMIT_SCREENSHOT_SUPPORT
     if (screenshotComboHandled) {
       screenshotComboHandled = false;
       return CrossPointSettings::SHORT_PWRBTN::IGNORE;
     }
+#endif
 
     return mappedInputManager.getHeldTime() < SETTINGS.getPowerButtonLongPressDuration()
                ? static_cast<CrossPointSettings::SHORT_PWRBTN>(SETTINGS.shortPwrBtn)
@@ -544,6 +560,7 @@ bool handleGlobalPowerButtonAction(const CrossPointSettings::SHORT_PWRBTN action
       renderer.displayBuffer(HalDisplay::HALF_REFRESH);
       return true;
     }
+#ifndef OMIT_SCREENSHOT_SUPPORT
     case CrossPointSettings::SHORT_PWRBTN::SCREENSHOT: {
       if (activityManager.canSnapshotForSleepOverlay()) {
         return false;
@@ -552,11 +569,14 @@ bool handleGlobalPowerButtonAction(const CrossPointSettings::SHORT_PWRBTN action
       ScreenshotUtil::takeScreenshot(renderer);
       return true;
     }
+#endif
+#ifndef OMIT_KOREADER_SYNC
     case CrossPointSettings::SHORT_PWRBTN::SYNC_PROGRESS:
       if (activityManager.canSnapshotForSleepOverlay()) {
         return false;
       }
       return startGlobalSyncProgress();
+#endif
     case CrossPointSettings::SHORT_PWRBTN::FILE_TRANSFER:
       if (activityManager.canSnapshotForSleepOverlay()) {
         return false;
@@ -800,7 +820,9 @@ void setup() {
   APP_STATE.loadFromFile();
   RECENT_BOOKS.loadFromFile();
   I18N.setLanguage(static_cast<Language>(SETTINGS.language));
+#ifndef OMIT_KOREADER_SYNC
   KOREADER_STORE.loadFromFile();
+#endif
   OPDS_STORE.loadFromFile();
   UITheme::getInstance().reload();
   ButtonNavigator::setMappedInputManager(mappedInputManager);
@@ -960,6 +982,7 @@ void loop() {
     if (line.startsWith("CMD:")) {
       String cmd = line.substring(4);
       cmd.trim();
+#ifndef OMIT_SCREENSHOT_SUPPORT
       if (cmd == "SCREENSHOT") {
         const uint32_t bufferSize = display.getBufferSize();
         logSerial.printf("SCREENSHOT_START:%d\n", bufferSize);
@@ -967,6 +990,7 @@ void loop() {
         logSerial.write(buf, bufferSize);
         logSerial.printf("SCREENSHOT_END\n");
       }
+#endif
     }
   }
 
@@ -978,6 +1002,7 @@ void loop() {
     powerManager.setPowerSaving(false);  // Restore normal CPU frequency on user activity
   }
 
+#ifndef OMIT_SCREENSHOT_SUPPORT
   static bool screenshotButtonsReleased = true;
   static bool screenshotComboActive = false;
   if (gpio.isPressed(HalGPIO::BTN_POWER) && gpio.isPressed(HalGPIO::BTN_DOWN)) {
@@ -1004,6 +1029,7 @@ void loop() {
     screenshotComboActive = false;
   }
 
+#endif
 #ifdef SIMULATOR
   if (gpio.consumeSimulatorSleepRequest()) {
     enterDeepSleep();

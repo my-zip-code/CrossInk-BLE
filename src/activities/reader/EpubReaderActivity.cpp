@@ -17,7 +17,9 @@
 #include <limits>
 #include <memory>
 
+#ifndef OMIT_KOREADER_SYNC
 #include "../settings/KOReaderSettingsActivity.h"
+#endif
 #include "BookStatsActivity.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
@@ -27,10 +29,16 @@
 #include "EpubReaderPercentSelectionActivity.h"
 #include "EpubReaderUtils.h"
 #include "GlobalActions.h"
+#ifndef OMIT_KOREADER_SYNC
 #include "KOReaderCredentialStore.h"
+#endif
+#ifndef OMIT_KOREADER_SYNC
 #include "KOReaderSyncActivity.h"
+#endif
 #include "MappedInputManager.h"
+#ifndef OMIT_KOREADER_SYNC
 #include "ProgressMapper.h"
+#endif
 #include "QrDisplayActivity.h"
 #include "ReaderUtils.h"
 #include "RecentBooksStore.h"
@@ -40,7 +48,9 @@
 #include "activities/util/IntervalSelectionActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#ifndef OMIT_SCREENSHOT_SUPPORT
 #include "util/ScreenshotUtil.h"
+#endif
 
 namespace {
 // pagesPerRefresh now comes from SETTINGS.getRefreshFrequency()
@@ -531,7 +541,9 @@ void EpubReaderActivity::loop() {
                              const auto& menu = std::get<MenuResult>(result.data);
                              applyOrientation(menu.orientation);
                              if (menu.settingsChanged) {
+#ifndef OMIT_SD_FONT_SYSTEM
                                sdFontSystem.ensureLoaded(renderer);
+#endif
                                RenderLock lock(*this);
                                if (section) {
                                  cachedSpineIndex = currentSpineIndex;
@@ -902,6 +914,7 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
       onGoHome();
       return;
     }
+#ifndef OMIT_SCREENSHOT_SUPPORT
     case EpubReaderMenuActivity::MenuAction::SCREENSHOT: {
       {
         RenderLock lock(*this);
@@ -910,6 +923,7 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
       requestUpdate();
       break;
     }
+#endif
     case EpubReaderMenuActivity::MenuAction::READING_STATS: {
       // Include elapsed time from the current session in the display stats.
       BookReadingStats displayStats = stats;
@@ -926,6 +940,7 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
       requestUpdate();
       break;
     }
+#ifndef OMIT_KOREADER_SYNC
     case EpubReaderMenuActivity::MenuAction::SYNC: {
       if (KOREADER_STORE.hasCredentials()) {
         const int currentPage = section ? section->currentPage : nextPageNumber;
@@ -977,6 +992,7 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
       }
       break;
     }
+#endif
     case EpubReaderMenuActivity::MenuAction::BOOKMARK_TOGGLE: {
       if (!section || section->pageCount == 0) break;
       const uint16_t spine = static_cast<uint16_t>(currentSpineIndex);
@@ -1035,7 +1051,9 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
 
 void EpubReaderActivity::reindexCurrentSection() {
   SETTINGS.saveToFile();
+#ifndef OMIT_SD_FONT_SYSTEM
   sdFontSystem.ensureLoaded(renderer);
+#endif
   {
     RenderLock lock(*this);
     GUI.drawPopup(renderer, tr(STR_INDEXING));
@@ -1096,6 +1114,7 @@ void EpubReaderActivity::executeReaderQuickAction(CrossPointSettings::LONG_PRESS
       pagesUntilFullRefresh = 1;  // Forces HALF_REFRESH on next render
       requestUpdate();
       break;
+#ifndef OMIT_KOREADER_SYNC
     case CrossPointSettings::LONG_MENU_SYNC_PROGRESS:
       if (KOREADER_STORE.hasCredentials()) {
         onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction::SYNC);
@@ -1104,6 +1123,7 @@ void EpubReaderActivity::executeReaderQuickAction(CrossPointSettings::LONG_PRESS
                                [this](const ActivityResult&) { SETTINGS.saveToFile(); });
       }
       break;
+#endif
     case CrossPointSettings::LONG_MENU_MARK_FINISHED: {
       const bool newCompleted = !stats.isCompleted;
       setBookCompleted(newCompleted);
@@ -1114,9 +1134,11 @@ void EpubReaderActivity::executeReaderQuickAction(CrossPointSettings::LONG_PRESS
     case CrossPointSettings::LONG_MENU_READING_STATS:
       onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction::READING_STATS);
       break;
+#ifndef OMIT_SCREENSHOT_SUPPORT
     case CrossPointSettings::LONG_MENU_SCREENSHOT:
       onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction::SCREENSHOT);
       break;
+#endif
     case CrossPointSettings::LONG_MENU_CYCLE_PAGE_TURN:
       openAutoPageTurnIntervalPicker(/*ignoreInitialConfirmRelease=*/true);
       break;
@@ -1158,18 +1180,22 @@ bool EpubReaderActivity::executeShortPowerButtonAction() {
     case CrossPointSettings::SHORT_PWRBTN::TOGGLE_BOOKMARK:
       executeReaderQuickAction(CrossPointSettings::LONG_MENU_TOGGLE_BOOKMARK);
       return true;
+#ifndef OMIT_KOREADER_SYNC
     case CrossPointSettings::SHORT_PWRBTN::SYNC_PROGRESS:
       executeReaderQuickAction(CrossPointSettings::LONG_MENU_SYNC_PROGRESS);
       return true;
+#endif
     case CrossPointSettings::SHORT_PWRBTN::MARK_FINISHED:
       executeReaderQuickAction(CrossPointSettings::LONG_MENU_MARK_FINISHED);
       return true;
     case CrossPointSettings::SHORT_PWRBTN::READING_STATS:
       executeReaderQuickAction(CrossPointSettings::LONG_MENU_READING_STATS);
       return true;
+#ifndef OMIT_SCREENSHOT_SUPPORT
     case CrossPointSettings::SHORT_PWRBTN::SCREENSHOT:
       executeReaderQuickAction(CrossPointSettings::LONG_MENU_SCREENSHOT);
       return true;
+#endif
     case CrossPointSettings::SHORT_PWRBTN::CYCLE_PAGE_TURN:
       executeReaderQuickAction(CrossPointSettings::LONG_MENU_CYCLE_PAGE_TURN);
       return true;
@@ -1221,18 +1247,22 @@ bool EpubReaderActivity::executeLongPowerButtonAction() {
     case CrossPointSettings::SHORT_PWRBTN::TOGGLE_BOOKMARK:
       executeReaderQuickAction(CrossPointSettings::LONG_MENU_TOGGLE_BOOKMARK);
       return true;
+#ifndef OMIT_KOREADER_SYNC
     case CrossPointSettings::SHORT_PWRBTN::SYNC_PROGRESS:
       executeReaderQuickAction(CrossPointSettings::LONG_MENU_SYNC_PROGRESS);
       return true;
+#endif
     case CrossPointSettings::SHORT_PWRBTN::MARK_FINISHED:
       executeReaderQuickAction(CrossPointSettings::LONG_MENU_MARK_FINISHED);
       return true;
     case CrossPointSettings::SHORT_PWRBTN::READING_STATS:
       executeReaderQuickAction(CrossPointSettings::LONG_MENU_READING_STATS);
       return true;
+#ifndef OMIT_SCREENSHOT_SUPPORT
     case CrossPointSettings::SHORT_PWRBTN::SCREENSHOT:
       executeReaderQuickAction(CrossPointSettings::LONG_MENU_SCREENSHOT);
       return true;
+#endif
     case CrossPointSettings::SHORT_PWRBTN::CYCLE_PAGE_TURN:
       executeReaderQuickAction(CrossPointSettings::LONG_MENU_CYCLE_PAGE_TURN);
       return true;
@@ -1633,10 +1663,12 @@ void EpubReaderActivity::render(RenderLock&& lock) {
 
   showPendingSyncSaveError();
 
+#ifndef OMIT_SCREENSHOT_SUPPORT
   if (pendingScreenshot) {
     pendingScreenshot = false;
     ScreenshotUtil::takeScreenshot(renderer);
   }
+#endif
 }
 
 void EpubReaderActivity::silentIndexNextChapterIfNeeded(const uint16_t viewportWidth, const uint16_t viewportHeight) {
@@ -2021,6 +2053,7 @@ bool EpubReaderActivity::drawCurrentPageToBuffer(const std::string& filePath, Gf
   return true;
 }
 
+#ifndef OMIT_SCREENSHOT_SUPPORT
 ScreenshotInfo EpubReaderActivity::getScreenshotInfo() const {
   ScreenshotInfo info;
   info.readerType = ScreenshotInfo::ReaderType::Epub;
@@ -2041,3 +2074,4 @@ ScreenshotInfo EpubReaderActivity::getScreenshotInfo() const {
   }
   return info;
 }
+#endif

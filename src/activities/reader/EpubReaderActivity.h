@@ -36,7 +36,9 @@ class EpubReaderActivity final : public Activity {
   bool pendingPercentJump = false;
   // Normalized 0.0-1.0 progress within the target spine item, computed from book percentage.
   float pendingSpineProgress = 0.0f;
+#ifndef OMIT_SCREENSHOT_SUPPORT
   bool pendingScreenshot = false;
+#endif
   bool pendingSyncSaveError = false;
   bool skipNextButtonCheck = false;  // Skip button processing for one frame after subactivity exit
   bool automaticPageTurnActive = false;
@@ -132,5 +134,7 @@ class EpubReaderActivity final : public Activity {
   // Used by SleepActivity to prepare the background for the overlay sleep mode.
   // Returns false if the page cannot be loaded (missing cache / file error).
   static bool drawCurrentPageToBuffer(const std::string& filePath, GfxRenderer& renderer);
+#ifndef OMIT_SCREENSHOT_SUPPORT
   ScreenshotInfo getScreenshotInfo() const override;
+#endif
 };
