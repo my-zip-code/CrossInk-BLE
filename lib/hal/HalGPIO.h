@@ -43,6 +43,15 @@ class HalGPIO {
   InputManager inputMgr;
 #endif
 
+  // Virtual button injection state for Bluetooth HID page turners.
+  // Bluetooth code can set these, and HalGPIO exposes them as if physical buttons were pressed.
+  uint8_t virtualButtonState = 0;
+  uint8_t desiredVirtualButtonState = 0;
+  uint8_t previousVirtualButtonState = 0;
+  unsigned long virtualPressStart[7] = {0};
+  unsigned long virtualPressFinish[7] = {0};
+  unsigned long virtualLastActivityTime[7] = {0};
+
   bool lastUsbConnected = false;
   bool usbStateChanged = false;
 
@@ -70,7 +79,14 @@ class HalGPIO {
   bool wasReleased(uint8_t buttonIndex) const;
   bool wasAnyReleased() const;
   unsigned long getHeldTime() const;
-  unsigned long getPowerButtonHeldTime() const;
+  unsigned long getHeldTime(uint8_t buttonIndex) const;
+  unsigned long getPowerButtonHeldTime() const { return getHeldTime(BTN_POWER); }
+
+  // Virtual button injection methods for Bluetooth HID page turners.
+  void setVirtualButtonState(uint8_t buttonIndex, bool pressed);
+  void injectButtonPress(uint8_t buttonIndex);
+  void clearVirtualButtons();
+  void updateVirtualButtonActivity(uint8_t buttonIndex);
 
   // Setup wake up GPIO and enter deep sleep
   void startDeepSleep();
