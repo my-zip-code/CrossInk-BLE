@@ -72,6 +72,10 @@ void forgetSavedBluetoothPageTurner() {
   btMgr.disable();
   gpio.clearVirtualButtons();
 }
+
+bool hasSavedBluetoothPageTurner() {
+  return BluetoothHIDManager::getInstance().hasBondedDevice();
+}
 #endif
 
 void BluetoothPageTurnerActivity::onEnter() {
@@ -99,7 +103,7 @@ void BluetoothPageTurnerActivity::onEnter() {
     statusMessage = std::string("Reconnecting to ") + name + "...";
   } else {
     state = BluetoothPageTurnerState::READY;
-    statusMessage = "Put Free2 in pairing mode, then press OK to scan.";
+    statusMessage = "Press OK to scan.";
   }
 #else
   state = BluetoothPageTurnerState::NOT_AVAILABLE;
@@ -176,9 +180,9 @@ void BluetoothPageTurnerActivity::performScan() {
   selectedIndex = 0;
   state = BluetoothPageTurnerState::DEVICE_LIST;
   if (devices.empty()) {
-    statusMessage = "No BLE devices found. Put Free2 in pairing mode and press Right to retry.";
+    statusMessage = "No BLE devices found. Put your device in pairing mode and press Right to retry.";
   } else {
-    statusMessage = "Choose the Free2 device. HID/page-turner-like devices are listed first.";
+    statusMessage = "Choose your device. HID-like devices are listed first.";
   }
   requestUpdate();
 #endif
@@ -294,7 +298,7 @@ void BluetoothPageTurnerActivity::loop() {
     }
 
 #if !defined(SIMULATOR) && defined(ENABLE_BLE_PAGE_TURNER)
-    if (mappedInput.wasPressed(MappedInputManager::Button::Right)) {
+    if (mappedInput.wasPressed(MappedInputManager::Button::Right) && hasSavedBluetoothPageTurner()) {
       forgetSavedBluetoothPageTurner();
       statusMessage = "Saved device forgotten. Press OK to scan.";
       requestUpdate();
@@ -402,10 +406,11 @@ void BluetoothPageTurnerActivity::renderReady() const {
   const int top = pageHeight / 2 - 20;
 
   renderer.drawCenteredText(UI_10_FONT_ID, top, statusMessage.c_str());
-  renderer.drawCenteredText(SMALL_FONT_ID, top + 30, "Put Free2 in pairing mode first.");
+  renderer.drawCenteredText(SMALL_FONT_ID, top + 30, "Put your device in pairing mode first.");
 
 #if !defined(SIMULATOR) && defined(ENABLE_BLE_PAGE_TURNER)
-  const auto labels = mappedInput.mapLabels(tr(STR_BACK), "Scan", "", "Forget");
+  const auto labels =
+      mappedInput.mapLabels(tr(STR_BACK), "Scan", "", hasSavedBluetoothPageTurner() ? "Forget" : "");
 #else
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), "Scan", "", "");
 #endif
