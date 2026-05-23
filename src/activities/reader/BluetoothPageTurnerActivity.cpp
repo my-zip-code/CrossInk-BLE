@@ -64,6 +64,14 @@ void configureBluetoothPageTurnerCallbacks() {
   });
 }
 }  // namespace
+
+void forgetSavedBluetoothPageTurner() {
+  auto& btMgr = BluetoothHIDManager::getInstance();
+  btMgr.setBondedDevice("", "");
+  btMgr.saveState();
+  btMgr.disable();
+  gpio.clearVirtualButtons();
+}
 #endif
 
 void BluetoothPageTurnerActivity::onEnter() {
@@ -91,7 +99,7 @@ void BluetoothPageTurnerActivity::onEnter() {
     statusMessage = std::string("Reconnecting to ") + name + "...";
   } else {
     state = BluetoothPageTurnerState::READY;
-    statusMessage = "Put your device in pairing mode, then press OK to scan.";
+    statusMessage = "Put Free2 in pairing mode, then press OK to scan.";
   }
 #else
   state = BluetoothPageTurnerState::NOT_AVAILABLE;
@@ -168,9 +176,9 @@ void BluetoothPageTurnerActivity::performScan() {
   selectedIndex = 0;
   state = BluetoothPageTurnerState::DEVICE_LIST;
   if (devices.empty()) {
-    statusMessage = "No BLE devices found. Put your device in pairing mode and press Right to retry.";
+    statusMessage = "No BLE devices found. Put Free2 in pairing mode and press Right to retry.";
   } else {
-    statusMessage = "Choose your device. HID-like devices are listed first.";
+    statusMessage = "Choose the Free2 device. HID/page-turner-like devices are listed first.";
   }
   requestUpdate();
 #endif
@@ -284,6 +292,15 @@ void BluetoothPageTurnerActivity::loop() {
       beginScan();
       return;
     }
+
+#if !defined(SIMULATOR) && defined(ENABLE_BLE_PAGE_TURNER)
+    if (mappedInput.wasPressed(MappedInputManager::Button::Right)) {
+      forgetSavedBluetoothPageTurner();
+      statusMessage = "Saved device forgotten. Press OK to scan.";
+      requestUpdate();
+      return;
+    }
+#endif
   }
 
   if (state == BluetoothPageTurnerState::DEVICE_LIST) {
@@ -325,6 +342,16 @@ void BluetoothPageTurnerActivity::loop() {
       finish();
       return;
     }
+
+#if !defined(SIMULATOR) && defined(ENABLE_BLE_PAGE_TURNER)
+    if (mappedInput.wasPressed(MappedInputManager::Button::Right)) {
+      forgetSavedBluetoothPageTurner();
+      state = BluetoothPageTurnerState::READY;
+      statusMessage = "Saved device forgotten. Press OK to scan.";
+      requestUpdate();
+      return;
+    }
+#endif
   }
 }
 
@@ -375,9 +402,13 @@ void BluetoothPageTurnerActivity::renderReady() const {
   const int top = pageHeight / 2 - 20;
 
   renderer.drawCenteredText(UI_10_FONT_ID, top, statusMessage.c_str());
-  renderer.drawCenteredText(SMALL_FONT_ID, top + 30, "Put your device in pairing mode first.");
+  renderer.drawCenteredText(SMALL_FONT_ID, top + 30, "Put Free2 in pairing mode first.");
 
+#if !defined(SIMULATOR) && defined(ENABLE_BLE_PAGE_TURNER)
+  const auto labels = mappedInput.mapLabels(tr(STR_BACK), "Scan", "", "Forget");
+#else
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), "Scan", "", "");
+#endif
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 }
 
@@ -447,7 +478,11 @@ void BluetoothPageTurnerActivity::renderConnected() const {
   renderer.drawCenteredText(UI_10_FONT_ID, top + 35, statusMessage.c_str());
   renderer.drawCenteredText(SMALL_FONT_ID, top + 65, "Press Back to return to the book.");
 
+#if !defined(SIMULATOR) && defined(ENABLE_BLE_PAGE_TURNER)
+  const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "Forget");
+#else
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");
+#endif
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 }
 
