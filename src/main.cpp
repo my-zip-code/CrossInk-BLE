@@ -976,12 +976,12 @@ void loop() {
   auto& btMgr = BluetoothHIDManager::getInstance();
 
   if (btMgr.isEnabled()) {
-    const bool userInputDetected = gpio.wasAnyPressed() || gpio.wasAnyReleased();
+    // Keep connected BLE input healthy, but do not auto-reconnect globally.
+    // Reconnects are intentionally driven by the reader/indexing flow or the Bluetooth Page Turner menu.
     btMgr.updateActivity();
-    btMgr.checkAutoReconnect(userInputDetected);
   }
 
-  const bool bleRecentActivity = btMgr.isEnabled() && btMgr.hasRecentActivity();
+  const bool bleRecentActivity = activityManager.isReaderActivity() && btMgr.isEnabled() && btMgr.hasRecentActivity();
 #else
   const bool bleRecentActivity = false;
 #endif

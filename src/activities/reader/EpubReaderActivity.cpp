@@ -1,6 +1,10 @@
 #include "EpubReaderActivity.h"
 
 #include <Arduino.h>
+#if !defined(SIMULATOR) && defined(ENABLE_BLE_PAGE_TURNER)
+#include <BluetoothHIDManager.h>
+#include <HalGPIO.h>
+#endif
 #include <Epub/Page.h>
 #include <Epub/blocks/TextBlock.h>
 #include <FontCacheManager.h>
@@ -59,6 +63,78 @@ constexpr uint16_t DEFAULT_AUTO_PAGE_TURN_INTERVAL_S = 30;
 constexpr uint16_t MIN_AUTO_PAGE_TURN_INTERVAL_S = 5;
 constexpr uint16_t MAX_AUTO_PAGE_TURN_INTERVAL_S = 120;
 constexpr int MAX_PAGE_LOAD_RETRIES = 3;
+
+#if !defined(SIMULATOR) && defined(ENABLE_BLE_PAGE_TURNER)
+void configureBleReaderCallbacks() {
+  auto& btMgr = BluetoothHIDManager::getInstance();
+
+  btMgr.setButtonInjector([](uint8_t buttonIndex, bool pressed) {
+    gpio.setVirtualButtonState(buttonIndex, pressed);
+  });
+
+  btMgr.setButtonActivityNotifier([](uint8_t buttonIndex) {
+    gpio.updateVirtualButtonActivity(buttonIndex);
+  });
+
+  btMgr.setReaderContextCallback([]() {
+    return true;
+  });
+}
+
+bool disconnectBleForEpubIndexingIfNeeded(const char* reason, int spineIndex) {
+  auto& btMgr = BluetoothHIDManager::getInstance();
+
+  if (!btMgr.isEnabled()) {
+    return false;
+  }
+
+  const bool shouldReconnect = btMgr.hasBondedDevice();
+  LOG_INF("ERS", "Temporarily disabling BLE for EPUB indexing: %s spine=%d reconnect=%d",
+          reason, spineIndex, shouldReconnect);
+
+  gpio.clearVirtualButtons();
+  btMgr.disable();
+
+  // Give NimBLE/controller cleanup a small moment before heap-heavy layout work.
+  delay(150);
+
+  return shouldReconnect;
+}
+
+void reconnectBleAfterEpubIndexingIfNeeded(bool& pendingReconnectFlag) {
+  if (!pendingReconnectFlag) {
+    return;
+  }
+
+  pendingReconnectFlag = false;
+
+  configureBleReaderCallbacks();
+
+  auto& btMgr = BluetoothHIDManager::getInstance();
+  if (!btMgr.hasBondedDevice()) {
+    LOG_INF("ERS", "Skipping BLE reconnect after indexing: no saved device");
+    return;
+  }
+
+  LOG_INF("ERS", "Re-enabling BLE after EPUB indexing");
+  if (!btMgr.enable()) {
+    LOG_ERR("ERS", "BLE re-enable failed after indexing: %s", btMgr.lastError.c_str());
+    return;
+  }
+
+  if (!btMgr.connectToBondedDevice()) {
+    LOG_ERR("ERS", "BLE reconnect failed after indexing: %s", btMgr.lastError.c_str());
+  } else {
+    LOG_INF("ERS", "BLE reconnect succeeded after indexing");
+  }
+}
+#else
+bool disconnectBleForEpubIndexingIfNeeded(const char*, int) {
+  return false;
+}
+
+void reconnectBleAfterEpubIndexingIfNeeded(bool&) {}
+#endif
 
 void drawToastBuffer(const GfxRenderer& renderer, const char* msg) {
   constexpr int toastPadX = 20;
@@ -544,6 +620,10 @@ void EpubReaderActivity::loop() {
 #ifndef OMIT_SD_FONT_SYSTEM
                                sdFontSystem.ensureLoaded(renderer);
 #endif
+                               const bool bleReconnectAfterIndexing =
+                                   disconnectBleForEpubIndexingIfNeeded("reader settings re-layout", currentSpineIndex);
+                               pendingBleReconnectAfterIndex = pendingBleReconnectAfterIndex || bleReconnectAfterIndexing;
+
                                RenderLock lock(*this);
                                if (section) {
                                  cachedSpineIndex = currentSpineIndex;
@@ -1054,6 +1134,11 @@ void EpubReaderActivity::reindexCurrentSection() {
 #ifndef OMIT_SD_FONT_SYSTEM
   sdFontSystem.ensureLoaded(renderer);
 #endif
+
+  const bool bleReconnectAfterIndexing =
+      disconnectBleForEpubIndexingIfNeeded("current section reindex", currentSpineIndex);
+  pendingBleReconnectAfterIndex = pendingBleReconnectAfterIndex || bleReconnectAfterIndexing;
+
   {
     RenderLock lock(*this);
     GUI.drawPopup(renderer, tr(STR_INDEXING));
@@ -1506,6 +1591,10 @@ void EpubReaderActivity::render(RenderLock&& lock) {
 
       bool imagesWereSuppressed = false;
       bool layoutAbortedForLowMemory = false;
+      const bool bleReconnectAfterIndexing =
+          disconnectBleForEpubIndexingIfNeeded("current chapter indexing", currentSpineIndex);
+      pendingBleReconnectAfterIndex = pendingBleReconnectAfterIndex || bleReconnectAfterIndexing;
+
       if (!section->createSectionFile(SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(),
                                       SETTINGS.extraParagraphSpacing, SETTINGS.forceParagraphIndents,
                                       SETTINGS.paragraphAlignment, viewportWidth, viewportHeight,
@@ -1524,6 +1613,7 @@ void EpubReaderActivity::render(RenderLock&& lock) {
         } else {
           showPendingSyncSaveError();
         }
+        reconnectBleAfterEpubIndexingIfNeeded(pendingBleReconnectAfterIndex);
         return;
       }
       LOG_DBG("ERS", "Cache build complete: pages=%u free=%u maxAlloc=%u", section->pageCount, ESP.getFreeHeap(),
@@ -1669,6 +1759,8 @@ void EpubReaderActivity::render(RenderLock&& lock) {
     ScreenshotUtil::takeScreenshot(renderer);
   }
 #endif
+
+  reconnectBleAfterEpubIndexingIfNeeded(pendingBleReconnectAfterIndex);
 }
 
 void EpubReaderActivity::silentIndexNextChapterIfNeeded(const uint16_t viewportWidth, const uint16_t viewportHeight) {
@@ -1701,6 +1793,11 @@ void EpubReaderActivity::silentIndexNextChapterIfNeeded(const uint16_t viewportW
 
   LOG_DBG("ERS", "Silently indexing next chapter: %d (free=%u, maxAlloc=%u)", nextSpineIndex, ESP.getFreeHeap(),
           ESP.getMaxAllocHeap());
+
+  const bool bleReconnectAfterIndexing =
+      disconnectBleForEpubIndexingIfNeeded("silent next-chapter indexing", nextSpineIndex);
+  pendingBleReconnectAfterIndex = pendingBleReconnectAfterIndex || bleReconnectAfterIndexing;
+
   if (!nextSection.createSectionFile(SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(),
                                      SETTINGS.extraParagraphSpacing, SETTINGS.forceParagraphIndents,
                                      SETTINGS.paragraphAlignment, viewportWidth, viewportHeight,
