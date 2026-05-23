@@ -15,6 +15,9 @@
 #include <Logging.h>
 #include <SPI.h>
 #include <builtinFonts/all.h>
+#if !defined(SIMULATOR) && defined(ENABLE_BLE_PAGE_TURNER)
+#include <BluetoothHIDManager.h>
+#endif
 
 #ifdef SIMULATOR
 using esp_reset_reason_t = int;
@@ -969,6 +972,20 @@ void loop() {
 
   renderer.setFadingFix(SETTINGS.fadingFix);
 
+#if !defined(SIMULATOR) && defined(ENABLE_BLE_PAGE_TURNER)
+  auto& btMgr = BluetoothHIDManager::getInstance();
+
+  if (btMgr.isEnabled()) {
+    const bool userInputDetected = gpio.wasAnyPressed() || gpio.wasAnyReleased();
+    btMgr.updateActivity();
+    btMgr.checkAutoReconnect(userInputDetected);
+  }
+
+  const bool bleRecentActivity = btMgr.isEnabled() && btMgr.hasRecentActivity();
+#else
+  const bool bleRecentActivity = false;
+#endif
+
   if (Serial && millis() - lastMemPrint >= 10000) {
     LOG_INF("MEM", "Free: %d bytes, Total: %d bytes, Min Free: %d bytes, MaxAlloc: %d bytes", ESP.getFreeHeap(),
             ESP.getHeapSize(), ESP.getMinFreeHeap(), ESP.getMaxAllocHeap());
@@ -996,7 +1013,7 @@ void loop() {
 
   // Check for any user activity (button press or release) or active background work
   static unsigned long lastActivityTime = millis();
-  if (gpio.wasAnyPressed() || gpio.wasAnyReleased() || halTiltSensor.hadActivity() ||
+  if (gpio.wasAnyPressed() || gpio.wasAnyReleased() || halTiltSensor.hadActivity() || bleRecentActivity ||
       activityManager.preventAutoSleep()) {
     lastActivityTime = millis();         // Reset inactivity timer
     powerManager.setPowerSaving(false);  // Restore normal CPU frequency on user activity
