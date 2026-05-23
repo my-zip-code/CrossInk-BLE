@@ -9,6 +9,9 @@
 #include "MappedInputManager.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#if !defined(SIMULATOR) && defined(ENABLE_BLE_PAGE_TURNER)
+#include "BluetoothPageTurnerActivity.h"
+#endif
 
 namespace {
 
@@ -92,7 +95,7 @@ std::vector<EpubReaderMenuActivity::MenuItem> EpubReaderMenuActivity::buildMenuI
                                                                                      bool isCurrentPageBookmarked,
                                                                                      bool isBookCompleted) {
   std::vector<MenuItem> items;
-  constexpr size_t baseItemCount = 14;
+  constexpr size_t baseItemCount = 15;
   const size_t totalItemCount = baseItemCount + (hasFootnotes ? 1u : 0u) + (hasBookmarks ? 2u : 0u);
   items.reserve(totalItemCount);
   if (hasFootnotes) {
@@ -103,6 +106,9 @@ std::vector<EpubReaderMenuActivity::MenuItem> EpubReaderMenuActivity::buildMenuI
   items.push_back({MenuAction::CONTROLS_OPTIONS, StrId::STR_CAT_CONTROLS});
   items.push_back({MenuAction::ROTATE_SCREEN, StrId::STR_ORIENTATION});
   items.push_back({MenuAction::AUTO_PAGE_TURN, StrId::STR_AUTO_TURN_INTERVAL_SECONDS});
+#if !defined(SIMULATOR) && defined(ENABLE_BLE_PAGE_TURNER)
+  items.push_back({MenuAction::BLUETOOTH_PAGE_TURNER, StrId::STR_NONE_OPT, "Bluetooth Page Turner"});
+#endif
   items.push_back({MenuAction::GO_TO_PERCENT, StrId::STR_GO_TO_PERCENT});
   items.push_back(
       {MenuAction::BOOKMARK_TOGGLE, isCurrentPageBookmarked ? StrId::STR_REMOVE_BOOKMARK : StrId::STR_ADD_BOOKMARK});
@@ -110,11 +116,15 @@ std::vector<EpubReaderMenuActivity::MenuItem> EpubReaderMenuActivity::buildMenuI
     items.push_back({MenuAction::VIEW_BOOKMARKS, StrId::STR_VIEW_BOOKMARKS});
     items.push_back({MenuAction::DELETE_BOOKMARKS, StrId::STR_DELETE_BOOKMARKS});
   }
+#ifndef OMIT_SCREENSHOT_SUPPORT
   items.push_back({MenuAction::SCREENSHOT, StrId::STR_SCREENSHOT_BUTTON});
+#endif
   items.push_back({MenuAction::DISPLAY_QR, StrId::STR_DISPLAY_QR});
   items.push_back({MenuAction::GO_HOME, StrId::STR_GO_HOME_BUTTON});
   items.push_back({MenuAction::DELETE_CACHE, StrId::STR_DELETE_CACHE});
+#ifndef OMIT_KOREADER_SYNC
   items.push_back({MenuAction::SYNC, StrId::STR_SYNC_PROGRESS});
+#endif
   items.push_back({MenuAction::READING_STATS, StrId::STR_READING_STATS});
   items.push_back(
       {MenuAction::TOGGLE_COMPLETED, isBookCompleted ? StrId::STR_MARK_UNFINISHED : StrId::STR_MARK_FINISHED});
@@ -172,6 +182,14 @@ void EpubReaderMenuActivity::loop() {
       return;
     }
 
+#if !defined(SIMULATOR) && defined(ENABLE_BLE_PAGE_TURNER)
+    if (selectedAction == MenuAction::BLUETOOTH_PAGE_TURNER) {
+      startActivityForResult(std::make_unique<BluetoothPageTurnerActivity>(renderer, mappedInput),
+                             [this](const ActivityResult&) { requestUpdate(); });
+      return;
+    }
+#endif
+
     setResult(MenuResult{static_cast<int>(selectedAction), pendingOrientation, settingsChanged});
     finish();
     return;
@@ -212,7 +230,7 @@ void EpubReaderMenuActivity::render(RenderLock&&) {
 
   GUI.drawList(
       renderer, Rect{screen.x, contentTop, screen.width, contentHeight}, menuItems.size(), selectedIndex,
-      [this](int index) { return I18N.get(menuItems[index].labelId); }, nullptr, nullptr,
+      [this](int index) { return menuItems[index].customLabel ? std::string(menuItems[index].customLabel) : std::string(I18N.get(menuItems[index].labelId)); }, nullptr, nullptr,
       [this](int index) -> std::string {
         const auto value = menuItems[index].action;
         if (value == MenuAction::ROTATE_SCREEN) {

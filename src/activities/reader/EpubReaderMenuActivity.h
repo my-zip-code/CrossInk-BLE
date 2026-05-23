@@ -28,6 +28,7 @@ class EpubReaderMenuActivity final : public Activity {
     TOGGLE_COMPLETED,
     READER_OPTIONS,
     CONTROLS_OPTIONS,
+    BLUETOOTH_PAGE_TURNER,
     BOOKMARK_TOGGLE,
     VIEW_BOOKMARKS,
     DELETE_BOOKMARKS
@@ -51,6 +52,7 @@ class EpubReaderMenuActivity final : public Activity {
   struct MenuItem {
     MenuAction action;
     StrId labelId;
+    const char* customLabel = nullptr;
   };
 
   static std::vector<MenuItem> buildMenuItems(bool hasFootnotes, bool hasBookmarks, bool isCurrentPageBookmarked,
