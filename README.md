@@ -1,54 +1,3 @@
-## Experimental BLE Page Turner Build
-
-This fork adds an experimental `ble_minimal` PlatformIO build for BLE HID page-turner support on CrossInk 1.3.0.
-
-The work references the prior CrossPoint BLE implementation by `thedrunkpenguin/crosspoint-reader-ble`, adapted for CrossInk 1.3.0:
-
-https://github.com/thedrunkpenguin/crosspoint-reader-ble
-
-### What works
-
-- Adds a `ble_minimal` firmware variant.
-- Adds a Bluetooth Page Turner option to the in-book reader menu.
-- Allows scanning for nearby BLE HID devices.
-- Allows selecting and saving a BLE device.
-- Allows forgetting the saved BLE device.
-- Injects BLE page-turner input into CrossInk as virtual button presses.
-- Tested with a Free2 BLE page turner.
-
-### Known limitations
-
-- This is experimental.
-- BLE uses extra memory, so EPUB indexing/re-indexing can be slower.
-- When CrossInk needs to index or re-index a chapter, BLE is temporarily disabled and the saved device is reconnected afterwards.
-- Reconnection after indexing may take a few seconds.
-- Changing reader settings such as font size can trigger re-indexing.
-- Other BLE HID page turners may appear in the scan list, but may need additional device profiles or report mappings before their buttons work correctly.
-
-### Recommended use
-
-For the smoothest experience:
-
-1. Open the book first.
-2. Let the chapter/book index using the device buttons.
-3. Open the in-book menu.
-4. Select **Bluetooth Page Turner**.
-5. Put your device in pairing mode.
-6. Scan and connect.
-7. Return to the book.
-
-If page turning becomes unreliable after changing font size or reader layout settings, wait for indexing to finish, then reconnect the saved BLE device from the Bluetooth Page Turner menu.
-
-## Features omitted in `ble_minimal`
-
-To reduce memory pressure, the `ble_minimal` build omits some heavier optional features, including:
-
-- KOReader sync
-- Screenshot support
-- Extra large / huge / emoji fonts
-
-Depending on the current branch state, SD card font support may be enabled or disabled while testing memory use.
-
 > **This is a personal fork of [CrossPoint Reader](https://github.com/crosspoint-reader/crosspoint-reader)** with a focus on improved fonts and minimal reading stats.
 
 ## What's different in this fork
@@ -123,9 +72,7 @@ The UI now uses [Inter](https://fonts.google.com/specimen/Inter) as the display 
 There are 4 available build variants to choose from due to build size constraints: tiny, xlarge, and no_emoji
 
 **teensy**
-
 > Only the small sized fonts.
-
 - Emoji & Misc. Symbols Support
 - 4 Font sizes:
   - Teensy (8pt)
@@ -215,7 +162,6 @@ Long-Press Action - **New**
 **Long Press Menu Button Action** (This is the Menu/Confirm button when you are in the reader): Default = Ignore
 
 Map the **Power** or **Menu** button short/long-press action to one of the following options:
-
 - Ignore
 - Sleep
 - Page Turn
@@ -300,9 +246,7 @@ pio run -e simulator
 > **Note:** On first open of an ebook, an "Indexing..." popup will appear while the section cache is built in `.crosspoint/`. If you see rendering issues after a code change, delete `./fs_/.crosspoint/` to clear stale caches.
 
 ---
-
 ## Installation
-
 ### Web
 
 1. Download the `firmware-*.bin` file for the build variant of your choosing from the [releases](https://github.com/uxjulia/CrossInk/releases) page
@@ -340,7 +284,6 @@ esptool.py --chip esp32c3 --port /dev/ttyACM0 --baud 921600 write_flash 0x10000 
 # macOS
 esptool.py --chip esp32c3 --port /dev/cu.usbmodem2101 --baud 921600 write_flash 0x10000 /path/to/firmware.bin
 ```
-
 ### Revert to Official Firmware
 
 To revert to the official firmware, you can flash the latest official firmware using https://crosspointreader.com/#flash-tools.
