@@ -210,7 +210,7 @@ void BluetoothPageTurnerActivity::performConnect() {
     btMgr.setBondedDevice(selectedAddress, selectedName);
     btMgr.saveState();
     state = BluetoothPageTurnerState::CONNECTED;
-    statusMessage = std::string("Connected to ") + selectedName + ". Press Back to return to the book.";
+    statusMessage = selectedName.empty() ? "Connected." : std::string("Connected to ") + selectedName + ".";
   } else {
     state = BluetoothPageTurnerState::FAILED;
     statusMessage = std::string("Could not connect to ") + selectedName + ": " + btMgr.lastError;
@@ -235,7 +235,7 @@ void BluetoothPageTurnerActivity::performReconnect() {
     if (name.empty()) {
       name = "saved device";
     }
-    statusMessage = std::string("Reconnected to ") + name + ". Press Back to return to the book.";
+    statusMessage = std::string("Reconnected to ") + name + ".";
   } else {
     state = BluetoothPageTurnerState::READY;
     statusMessage = "Saved device not available. Press OK to scan.";
@@ -441,12 +441,13 @@ void BluetoothPageTurnerActivity::renderConnecting() const {
 
 void BluetoothPageTurnerActivity::renderConnected() const {
   const auto pageHeight = renderer.getScreenHeight();
-  const int top = pageHeight / 2 - 30;
+  const int top = pageHeight / 2 - 45;
 
   renderer.drawCenteredText(UI_12_FONT_ID, top, "Connected", true, EpdFontFamily::BOLD);
-  renderer.drawCenteredText(UI_10_FONT_ID, top + 40, statusMessage.c_str());
+  renderer.drawCenteredText(UI_10_FONT_ID, top + 35, statusMessage.c_str());
+  renderer.drawCenteredText(SMALL_FONT_ID, top + 65, "Press Back to return to the book.");
 
-  const auto labels = mappedInput.mapLabels(tr(STR_BACK), "Done", "", "");
+  const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 }
 
